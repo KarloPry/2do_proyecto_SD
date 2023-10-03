@@ -1,41 +1,89 @@
 import socket
+import threading
+import os
 
-OTHER_HOST = '127.0.0.1'
-MY_HOST = '127.0.0.1'
-OTHER_PORT = int(input("Whats the other port?"))  # Port of the remote server
-MY_PORT = int(input("Whats my port?"))  # Port for your server
-def peer_server():
-    peer_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Socket server de mi peer
-    peer_server_socket.bind((MY_HOST, MY_PORT))  # Mi socket server establece su dirección y puerto
-    peer_server_socket.listen(1)  # Mi socket server escucha una conexión
-    server_connection, server_address = peer_server_socket.accept()
-    data = server_connection.recv(1024)
-    print(f"Recieved ->: \n {data.decode()}")
-    peer_server_socket.close()
-    peer_client()
+# Función para limpiar la consola (No sirve :( )
+def clear_console():
+    if os.name == 'posix':
+        # En sistemas POSIX (Linux, macOS)
+        os.system('clear')
+    elif os.name == 'nt':
+        # En sistemas Windows
+        os.system('cls')
 
-# Create the client socket and connect to the server
-def peer_client():
-    peer_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Socket cliente de mi peer
-    peer_client_socket.connect((OTHER_HOST, OTHER_PORT))  # Conexión de mi peer cliente al server del otro peer
-    message = input("Send a message: \n")
-    peer_client_socket.send(message.encode())
-    peer_client_socket.close()
-    peer_server()
+# Proceso del servidor
+def socket_server(host, port):
+    while True:
+        print(f"Server running on port {port}\n")
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((host, port))
+        server_socket.listen(1000)
+        client_socket, client_address = server_socket.accept()
+        print(f"Connection from {client_address}\n")
+        clear_console()
+        while True:
+            data = client_socket.recv(1024)
+            if not data:
+                break
+            if data.decode() == "Enviando un archivo...":
+                print("Archivo FUNC")
+                filename = client_socket.recv(1024).decode()
+                with open(filename, 'wb') as file:
+                    while True:
+                        file_data = client_socket.recv(1024)
+                        print(file_data)
+                        if not file_data:
+                            print("Done!")
+                            break
+                        file.write(file_data)
+                print(f"Archivo recibido: {filename}")
+            else:
+                print(f"{client_address[0]}: {data.decode()}")
 
-def ask_user():
-    user_input = input("1 to be server first\n2 to be client first")
-    if user_input == "1":
-        peer_server()
-    if user_input == "2":
-        peer_client()
-    else:
-        ask_user()
+        print("Connection closed.")
+        client_socket.close()
+
+# Proceso del cliente
+def socket_client(other_host, other_port):
+    print(f"Connecting to host {other_host}\n")
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((other_host, other_port))
+    clear_console()
+    print("Ingresa el mensaje que deseas enviar (o 'exit' para salir), envia 'archivo' si deseas enviar un archivo\n")
+    while True:
+        message = input("")
+        if message == "archivo":
+            client_socket.send(b'Enviando un archivo...')
+            path = input("Ingresa el path del archivo: ")
+            filename = path.split('\\')[-1]
+            client_socket.send(filename.encode())
+            with open(path, 'rb') as file:
+                file_data = file.read(1024)
+                while file_data:
+                    client_socket.send(file_data)
+                    file_data = file.read(1024)
+                client_socket.shutdown(socket.SHUT_WR)
+            print(f"Archivo enviado: {filename}")
+        elif message.lower() == 'exit':
+            client_socket.close()
+        else:
+            message = message + "\n"
+            client_socket.send(message.encode())
 
 
+def startup():
+    my_host = input("Ingresa tu dirección: ")
+    my_port = int(input("Ingresa tu puerto: "))
+    hilo_server = threading.Thread(target=socket_server, args=(my_host, my_port))
+    hilo_server.start()
+    other_host = input("Ingresa la dirección del server: ")
+    other_port = int(input("Ingresa el puerto del server: "))
+    clear_console()
+    hilo_cliente = threading.Thread(target=socket_client, args=(other_host, other_port))
+    hilo_cliente.start()
 
+    # Espera a que los hilos se completen antes de salir del programa
+    hilo_server.join()
+    hilo_cliente.join()
 
-# Create and bind the server socket
-
-
-ask_user()
+startup()
