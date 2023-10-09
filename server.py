@@ -1,5 +1,7 @@
 import socket
-
+import pickle
+import time
+USERS_CONECTED = []
 def checkAuth(username, password):
     with open("login_credentials.txt", mode='r') as file:
         for line in file:
@@ -7,6 +9,10 @@ def checkAuth(username, password):
             if username == stored_username and password == stored_password:
                 return True
     return False
+
+def getUsers():
+    data = pickle.dumps(USERS_CONECTED)
+    client_socket.send(data)
 
 host = input("Ingresa tu host: ")
 port = int(input("Ingresa tu port: "))
@@ -22,11 +28,16 @@ while True:
 
     # Recibir el nombre de usuario y la contraseña del cliente
     data_login = client_socket.recv(1024).decode()
-    username = data_login.split(" ")[0]
-    password = data_login.split(" ")[1]
-    isAuth = checkAuth(username, password)
-    print(isAuth)
-    if isAuth:
-        client_socket.send("Autorizao".encode())
+    if data_login == "Users":
+        getUsers()
     else:
-        pass
+        username = data_login.split(" ")[0]
+        password = data_login.split(" ")[1]
+        port = data_login.split(" ")[2]
+        isAuth = checkAuth(username, password)
+        print(isAuth)
+        if isAuth:
+            USERS_CONECTED.append((username, password, client_address[0], port))
+            client_socket.send("Autorizao".encode())
+        else:
+            pass
